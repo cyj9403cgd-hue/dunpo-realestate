@@ -1,0 +1,940 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>둔포 부동산 대시보드</title>
+<link rel="icon" href="logo.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="data.js"></script>
+<script src="snapshot.js"></script>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f3f5f8;
+  --surface: #ffffff;
+  --surface-2: #f7f8fa;
+  --line: #e3e6eb;
+  --text: #0e1726;
+  --text-2: #4b5565;
+  --muted: #8a93a3;
+  --brand: #0f3b74;
+  --brand-2: #0c8a7d;
+  --gold: #f5b82e;
+  --s-trade: #2a78d6;  /* 매매 */
+  --s-jeonse: #eb6834; /* 전세 */
+  --s-wolse: #1baf7a;  /* 월세 */
+  --up: #d93b3b;
+  --down: #2a6fd6;
+  --shadow: 0 1px 2px rgba(16,24,40,.05), 0 1px 3px rgba(16,24,40,.06);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #101317; --surface: #1a1d22; --surface-2: #22262c; --line: #2f343b;
+    --text: #eef0f3; --text-2: #b9c0cb; --muted: #858d99;
+    --s-trade: #3987e5; --s-jeonse: #d95926; --s-wolse: #199e70;
+    --up: #f06b6b; --down: #5b97ee;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #101317; --surface: #1a1d22; --surface-2: #22262c; --line: #2f343b;
+  --text: #eef0f3; --text-2: #b9c0cb; --muted: #858d99;
+  --s-trade: #3987e5; --s-jeonse: #d95926; --s-wolse: #199e70;
+  --up: #f06b6b; --down: #5b97ee;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'Noto Sans KR', system-ui, sans-serif; font-size: 14px; line-height: 1.5; }
+button, input, select { font: inherit; color: inherit; }
+.wrap { max-width: 1440px; margin: 0 auto; padding: 0 16px 40px; }
+
+/* 헤더 */
+header.top { background: linear-gradient(110deg, #0b2f5e 0%, #0f3b74 55%, #0c8a7d 100%); color: #fff; }
+header.top .wrap { display: flex; align-items: center; gap: 16px; padding-top: 14px; padding-bottom: 14px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand img { width: 54px; height: 54px; filter: drop-shadow(0 2px 6px rgba(0,0,0,.25)); }
+.brand .name { font-size: 24px; font-weight: 900; letter-spacing: -0.5px; }
+.brand .sub { font-size: 12px; opacity: .85; letter-spacing: .5px; }
+.brand .sub b { color: var(--gold); font-weight: 700; }
+.head-title { margin-left: auto; text-align: right; }
+.head-title h1 { margin: 0; font-size: 18px; font-weight: 700; }
+.head-title .meta { font-size: 12px; opacity: .8; }
+.tel { display: inline-flex; align-items: center; gap: 6px; background: var(--gold); color: #1d1500; font-weight: 900; padding: 8px 14px; border-radius: 999px; text-decoration: none; font-size: 16px; }
+
+/* 필터 바 */
+.filters { position: sticky; top: 0; z-index: 1000; background: var(--surface); border-bottom: 1px solid var(--line); box-shadow: var(--shadow); }
+.filters .wrap { display: flex; gap: 12px 20px; align-items: center; flex-wrap: wrap; padding-top: 10px; padding-bottom: 10px; }
+.fgroup { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.fgroup > label { font-size: 12px; color: var(--muted); font-weight: 700; margin-right: 2px; }
+.chip { border: 1px solid var(--line); background: var(--surface); padding: 5px 12px; border-radius: 999px; cursor: pointer; font-size: 13px; white-space: nowrap; }
+.chip:hover { border-color: var(--brand-2); }
+.chip.on { background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 700; }
+.chip .cnt { opacity: .7; font-size: 11px; margin-left: 3px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; background: var(--surface); padding: 6px 14px; cursor: pointer; }
+.seg button.on { background: var(--brand); color: #fff; font-weight: 700; }
+input[type=date] { border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; background: var(--surface); }
+.btn { border: 0; background: var(--brand-2); color: #fff; padding: 7px 16px; border-radius: 8px; cursor: pointer; font-weight: 700; }
+.btn.ghost { background: transparent; color: var(--brand-2); border: 1px solid var(--brand-2); }
+.btn.sm { padding: 4px 10px; font-size: 12px; }
+
+/* 카드 */
+section { margin-top: 18px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 16px; min-width: 0; }
+.card h2 { font-size: 16px; margin: 0 0 4px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.card h2 .badge { font-size: 11px; font-weight: 500; color: var(--muted); }
+.card .desc { color: var(--muted); font-size: 12px; margin: 0 0 12px; }
+.grid { display: grid; gap: 16px; }
+.g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 1100px) { .g4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .g3 { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .g2, .g4 { grid-template-columns: 1fr; } .head-title { margin-left: 0; text-align: left; } }
+
+/* KPI */
+.kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 1200px) { .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; box-shadow: var(--shadow); min-width: 0; }
+.kpi .k { font-size: 12px; color: var(--text-2); display: flex; align-items: center; gap: 6px; }
+.kpi .k i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+.kpi .v { font-size: 22px; font-weight: 900; letter-spacing: -0.5px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpi .v small { font-size: 13px; font-weight: 500; color: var(--text-2); margin-left: 2px; }
+.kpi .s { font-size: 12px; color: var(--muted); }
+.up { color: var(--up); } .down { color: var(--down); }
+
+/* 테이블 */
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { padding: 8px 8px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+th { font-size: 12px; color: var(--muted); font-weight: 700; background: var(--surface-2); position: sticky; top: 0; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: var(--surface-2); }
+tbody tr.sel { background: color-mix(in srgb, var(--brand-2) 12%, transparent); }
+
+/* Top10 */
+.top10 { display: grid; grid-template-columns: 420px minmax(0, 1fr); gap: 16px; }
+@media (max-width: 980px) { .top10 { grid-template-columns: 1fr; } }
+.tabs { display: inline-flex; gap: 4px; background: var(--surface-2); padding: 4px; border-radius: 10px; }
+.tabs button { border: 0; background: transparent; padding: 6px 16px; border-radius: 7px; cursor: pointer; font-weight: 700; color: var(--text-2); }
+.tabs button.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+.tabs button.on[data-t=trade] { color: var(--s-trade); }
+.tabs button.on[data-t=jeonse] { color: var(--s-jeonse); }
+.tabs button.on[data-t=wolse] { color: var(--s-wolse); }
+.rank-list { list-style: none; margin: 10px 0 0; padding: 0; }
+.rank-list li { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 10px; border-radius: 10px; cursor: pointer; border: 1px solid transparent; }
+.rank-list li:hover { background: var(--surface-2); }
+.rank-list li.sel { border-color: var(--brand-2); background: color-mix(in srgb, var(--brand-2) 8%, transparent); }
+.rank-list .no { width: 26px; height: 26px; border-radius: 8px; background: var(--surface-2); display: grid; place-items: center; font-weight: 900; font-size: 13px; }
+.rank-list li:nth-child(-n+3) .no { background: var(--brand); color: #fff; }
+.rank-list .nm { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-list .sb { font-size: 12px; color: var(--muted); }
+.rank-list .pr { text-align: right; font-weight: 900; font-variant-numeric: tabular-nums; }
+.rank-list .pr small { display: block; font-weight: 400; font-size: 11px; color: var(--muted); }
+.map { height: 520px; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); z-index: 0; }
+.mk { background: var(--brand); color: #fff; border: 2px solid #fff; border-radius: 50%; width: 28px; height: 28px; display: grid; place-items: center; font-weight: 900; font-size: 13px; box-shadow: 0 2px 6px rgba(0,0,0,.35); }
+.mk.sel { background: var(--gold); color: #1d1500; transform: scale(1.25); }
+.mk-label { background: rgba(255,255,255,.95); color: #0e1726; border-radius: 8px; padding: 3px 7px; font-size: 12px; font-weight: 700; white-space: nowrap; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+.leaflet-tooltip-clean { background: transparent; border: 0; box-shadow: none; padding: 0; }
+.leaflet-tooltip-clean:before { display: none; }
+.poi { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; font-size: 12px; color: #fff; border: 1.5px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+.leaflet-popup-content { font-family: 'Noto Sans KR', sans-serif; font-size: 13px; margin: 10px 12px; }
+.pop h4 { margin: 0 0 6px; font-size: 14px; }
+.pop .row { display: flex; justify-content: space-between; gap: 14px; }
+.pop .row b { font-variant-numeric: tabular-nums; }
+
+/* 입지분석 */
+.detail-head { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.detail-head h2 { font-size: 20px; margin: 0; }
+.price-pills { display: flex; gap: 10px; flex-wrap: wrap; margin-left: auto; }
+.pill { border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; min-width: 150px; background: var(--surface-2); }
+.pill .t { font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+.pill .t i { width: 8px; height: 8px; border-radius: 2px; }
+.pill .p { font-size: 18px; font-weight: 900; font-variant-numeric: tabular-nums; }
+.pill .d { font-size: 11px; color: var(--muted); }
+.loc { border: 1px solid var(--line); border-radius: 12px; padding: 14px; background: var(--surface); min-width: 0; }
+.loc h3 { margin: 0 0 10px; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.loc h3 .ic { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; color: #fff; font-size: 15px; }
+.loc .sub { font-size: 12px; font-weight: 700; color: var(--muted); margin: 10px 0 4px; }
+.loc ul { list-style: none; margin: 0; padding: 0; }
+.loc li { display: flex; justify-content: space-between; gap: 8px; padding: 5px 0; border-bottom: 1px dashed var(--line); font-size: 13px; }
+.loc li:last-child { border-bottom: 0; }
+.loc li .r { color: var(--text-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.loc li .n { min-width: 0; }
+.loc li .n small { display: block; color: var(--muted); font-size: 11px; }
+.tag { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); color: var(--text-2); margin-right: 4px; }
+.dev li { display: block; }
+.dev li b { display: block; }
+.dev li .when { font-size: 11px; color: var(--brand-2); font-weight: 700; }
+.dev li p { margin: 2px 0 0; color: var(--text-2); font-size: 12px; }
+.summary { background: color-mix(in srgb, var(--brand) 7%, transparent); border-left: 4px solid var(--brand); border-radius: 8px; padding: 10px 14px; margin: 14px 0; font-size: 14px; }
+.listing-banner { background: color-mix(in srgb, var(--gold) 18%, transparent); border: 1px solid var(--gold); border-radius: 10px; padding: 10px 14px; margin-top: 12px; display: none; }
+
+/* 추천매물 */
+.listing { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--surface); cursor: pointer; display: flex; flex-direction: column; transition: transform .12s, box-shadow .12s; box-shadow: var(--shadow); position: relative; }
+.listing:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(16,24,40,.12); }
+.listing .ph { height: 96px; background: linear-gradient(135deg, #0f3b74, #0c8a7d); color: #fff; padding: 12px 14px; position: relative; }
+.listing .ph .ty { display: inline-block; background: #fff; font-weight: 900; font-size: 12px; padding: 2px 10px; border-radius: 999px; }
+.listing .ph .nm { font-weight: 900; font-size: 16px; margin-top: 8px; line-height: 1.3; }
+.listing .bd { padding: 12px 14px; flex: 1; }
+.listing .price { font-size: 22px; font-weight: 900; }
+.listing .price small { font-size: 12px; color: var(--muted); font-weight: 500; }
+.listing .ds { color: var(--text-2); font-size: 13px; margin: 4px 0 8px; }
+.listing .ft { padding: 8px 14px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; }
+.listing .del { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,.35); color: #fff; border: 0; border-radius: 6px; width: 24px; height: 24px; cursor: pointer; z-index: 2; }
+.listing.add { border: 2px dashed var(--line); align-items: center; justify-content: center; color: var(--muted); min-height: 240px; box-shadow: none; }
+.listing.add:hover { border-color: var(--brand-2); color: var(--brand-2); }
+dialog { border: 0; border-radius: 14px; padding: 20px; width: min(460px, calc(100vw - 32px)); background: var(--surface); color: var(--text); box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+dialog::backdrop { background: rgba(10,15,25,.5); }
+dialog h3 { margin: 0 0 12px; }
+.form { display: grid; grid-template-columns: 90px 1fr; gap: 8px 10px; align-items: center; }
+.form input, .form select { border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; background: var(--surface); width: 100%; }
+
+.chart-box { position: relative; height: 260px; }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--text-2); flex-wrap: wrap; margin-bottom: 6px; }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.empty { color: var(--muted); padding: 30px 0; text-align: center; }
+.loading { position: fixed; inset: 0; background: rgba(243,245,248,.75); display: none; place-items: center; z-index: 3000; font-weight: 700; color: var(--brand); }
+.loading.on { display: grid; }
+.spin { width: 38px; height: 38px; border: 4px solid var(--line); border-top-color: var(--brand-2); border-radius: 50%; animation: sp 1s linear infinite; margin: 0 auto 10px; }
+@keyframes sp { to { transform: rotate(360deg); } }
+footer { margin-top: 28px; color: var(--muted); font-size: 12px; line-height: 1.7; }
+footer b { color: var(--text-2); }
+@media print { .filters { position: static; } .loading, .listing.add, .listing .del { display: none !important; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="brand">
+      <img src="logo.svg" alt="내집멘토부동산 로고">
+      <div>
+        <div class="name">내집멘토부동산</div>
+        <div class="sub"><b>ASAN</b> 아산 둔포 전문 공인중개사사무소</div>
+      </div>
+    </div>
+    <a class="tel" href="tel:0415457771">☎ 041-545-7771</a>
+    <div class="head-title">
+      <h1>아산시 둔포면 아파트 시장 브리핑</h1>
+      <div class="meta" id="metaLine">국토교통부 실거래가 · 한국부동산원 R-ONE</div>
+    </div>
+  </div>
+</header>
+
+<div class="filters">
+  <div class="wrap">
+    <div class="fgroup" id="riChips"><label>지역(리)</label></div>
+    <div class="fgroup">
+      <label>집계</label>
+      <div class="seg" id="unitSeg"><button data-u="week">주간</button><button data-u="month" class="on">월간</button></div>
+    </div>
+    <div class="fgroup">
+      <label>기간</label>
+      <input type="date" id="dFrom"> ~ <input type="date" id="dTo">
+      <button class="btn" id="btnApply">조회</button>
+    </div>
+    <div class="fgroup" id="presets">
+      <button class="chip" data-p="4w">4주</button>
+      <button class="chip" data-p="12w">12주</button>
+      <button class="chip" data-p="6m">6개월</button>
+      <button class="chip on" data-p="12m">1년</button>
+      <button class="chip" data-p="36m">3년</button>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+  <div id="offlineNote" style="display:none;margin-top:14px;padding:10px 14px;border-radius:10px;background:color-mix(in srgb, var(--gold) 20%, transparent);border:1px solid var(--gold);font-size:13px"></div>
+  <section class="kpis" id="kpis"></section>
+
+  <!-- 3. 리별 아파트 리스트 -->
+  <section class="card">
+    <h2 id="aptListTitle">둔포면 아파트 리스트</h2>
+    <p class="desc">지역(리)을 선택하면 해당 리의 아파트만 표시됩니다. 행을 클릭하면 아래 지도·입지분석으로 이동합니다. (선택 기간 기준)</p>
+    <div class="tbl-wrap"><table id="aptTable"></table></div>
+  </section>
+
+  <!-- 5·6. Top10 + 지도 -->
+  <section class="card" id="top10Sec">
+    <h2>둔포면 아파트 TOP 10 <span class="badge" id="top10Badge"></span></h2>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px">
+      <div class="tabs" id="typeTabs">
+        <button data-t="trade" class="on">매매</button>
+        <button data-t="jeonse">전세</button>
+        <button data-t="wolse">월세</button>
+      </div>
+      <div class="seg" id="sortSeg"><button data-s="cnt" class="on">거래량순</button><button data-s="price">가격순</button></div>
+    </div>
+    <div class="top10" style="margin-top:12px">
+      <div><ol class="rank-list" id="rankList"></ol></div>
+      <div><div class="map" id="map"></div></div>
+    </div>
+  </section>
+
+  <!-- 8. 입지분석 -->
+  <section class="card" id="detailSec">
+    <div class="detail-head">
+      <div>
+        <div class="desc" style="margin:0" id="dtRi"></div>
+        <h2 id="dtName">단지를 선택하세요</h2>
+        <div class="desc" style="margin:4px 0 0" id="dtMeta"></div>
+      </div>
+      <div class="price-pills" id="dtPills"></div>
+    </div>
+    <div class="listing-banner" id="listingBanner"></div>
+    <div class="summary" id="dtSummary">TOP 10 또는 추천매물에서 단지를 클릭하면 교통·학군·상권·개발계획 입지분석이 한 번에 펼쳐집니다.</div>
+    <div class="grid g4" id="locGrid"></div>
+    <div class="grid g2" style="margin-top:16px">
+      <div class="loc">
+        <h3>입지 지도 <span class="badge" style="font-size:11px;color:var(--muted);font-weight:400">학교·마트·관공서·직장 위치</span></h3>
+        <div class="map" id="locMap" style="height:340px"></div>
+      </div>
+      <div class="loc">
+        <h3>실거래가 추이 <span class="badge" style="font-size:11px;color:var(--muted);font-weight:400">최근 3년 · 만원</span></h3>
+        <div class="legend"><span><i style="background:var(--s-trade)"></i>매매</span><span><i style="background:var(--s-jeonse)"></i>전세</span></div>
+        <div class="chart-box" style="height:300px"><canvas id="cAptHist"></canvas></div>
+      </div>
+    </div>
+    <div class="loc" style="margin-top:16px">
+      <h3>최근 실거래 내역</h3>
+      <div class="tbl-wrap" style="max-height:300px;overflow:auto"><table id="dtDeals"></table></div>
+    </div>
+  </section>
+
+  <!-- 7. 추천매물 -->
+  <section class="card">
+    <h2>내집멘토 추천매물 <span class="badge">클릭하면 입지분석이 펼쳐집니다</span></h2>
+    <p class="desc" id="listingDesc">샘플 매물 4건이 들어 있습니다. ＋ 버튼으로 매물을 추가하고, 카드의 × 로 삭제할 수 있습니다. (이 PC 브라우저에 저장)</p>
+    <div class="grid g4" id="listingGrid" style="grid-template-columns:repeat(auto-fill,minmax(240px,1fr))"></div>
+  </section>
+
+  <!-- 추세 차트 -->
+  <section class="grid g2">
+    <div class="card">
+      <h2>거래량 추이 <span class="badge" id="volBadge"></span></h2>
+      <p class="desc">선택 지역 · 국토교통부 실거래 신고 건수 (해제 거래 제외)</p>
+      <div class="legend"><span><i style="background:var(--s-trade)"></i>매매</span><span><i style="background:var(--s-jeonse)"></i>전세</span><span><i style="background:var(--s-wolse)"></i>월세</span></div>
+      <div class="chart-box"><canvas id="cVol"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>평균 평당가 추이 <span class="badge">만원 / 3.3㎡ (전용 기준)</span></h2>
+      <p class="desc">선택 지역 매매가·전세보증금을 전용면적 평당으로 환산한 평균</p>
+      <div class="legend"><span><i style="background:var(--s-trade)"></i>매매</span><span><i style="background:var(--s-jeonse)"></i>전세</span></div>
+      <div class="chart-box"><canvas id="cPpp"></canvas></div>
+    </div>
+  </section>
+
+  <section class="grid g3">
+    <div class="card">
+      <h2>아파트 가격지수 <span class="badge">한국부동산원 주간</span></h2>
+      <p class="desc">기준시점 = 100 · 아산 vs 전국 · 최소 1년 표시</p>
+      <div class="legend"><span><i style="background:var(--s-trade)"></i>아산 매매</span><span><i style="background:var(--s-jeonse)"></i>아산 전세</span><span><i style="background:#8a93a3"></i>전국 매매</span></div>
+      <div class="chart-box"><canvas id="cIdx"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>아산시 미분양 주택 <span class="badge">한국부동산원 · 호</span></h2>
+      <p class="desc">월별 미분양주택현황 (최근 24개월)</p>
+      <div class="chart-box"><canvas id="cUnsold"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>아산시 아파트 거래량 <span class="badge">한국부동산원 · 호</span></h2>
+      <p class="desc">행정구역별 아파트 거래현황 (매매·증여 등 전체, 최근 24개월)</p>
+      <div class="chart-box"><canvas id="cAsanVol"></canvas></div>
+    </div>
+  </section>
+
+  <footer>
+    <b>내집멘토부동산</b> · Tel. 041-545-7771 · 아산 둔포 전문<br>
+    자료: 국토교통부 아파트 매매·전월세 실거래가(공공데이터포털), 한국부동산원 R-ONE 부동산통계(주간 가격지수·미분양·거래현황), 지도 © OpenStreetMap contributors.<br>
+    실거래가는 계약일 기준이며 신고기한(30일)으로 최근 4주 자료는 추가될 수 있습니다. 입지·개발계획은 공개 자료 요약으로 브리핑 시 최신 공고를 확인하시기 바랍니다. 거리·시간은 직선거리 기준 추정치입니다.
+  </footer>
+</div>
+
+<dialog id="dlg">
+  <h3>추천매물 추가</h3>
+  <form method="dialog" class="form" id="dlgForm">
+    <label>단지</label><select name="key" id="fKey"></select>
+    <label>거래유형</label><select name="type"><option>매매</option><option>전세</option><option>월세</option></select>
+    <label>전용(㎡)</label><input name="area" type="number" step="0.1" placeholder="84" required>
+    <label>가격</label><input name="price" placeholder="예) 3억 1,500 / 2,000 / 95" required>
+    <label>층</label><input name="floor" placeholder="예) 12층 / 중층">
+    <label>설명</label><input name="desc" placeholder="한 줄 소개">
+    <label>태그</label><input name="tags" placeholder="쉼표로 구분 (신축, 남향)">
+    <div></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">
+      <button class="btn ghost" value="cancel" formnovalidate>취소</button>
+      <button class="btn" value="ok">추가</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="loading" id="loading"><div><div class="spin"></div><span id="loadingMsg">실거래 데이터를 불러오는 중…</span></div></div>
+
+<script>
+const D = window.DUNPO;
+const $ = s => document.querySelector(s);
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const PY = 3.305785;
+// 일반지도: 로컬 서버(/tiles)가 OSM 타일을 받아 캐시. 서버 없이 파일로 열면 위성지도(Esri)만 사용
+const IS_FILE = location.protocol === 'file:';
+// GitHub Pages 등 공개 호스팅: API 서버 없이 매일 갱신되는 snapshot.js 만 사용
+const IS_HOSTED = !IS_FILE && !['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+const STATIC = IS_FILE || IS_HOSTED;
+function addBaseLayers(m) {
+  const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 18, attribution: 'Imagery © Esri' });
+  if (IS_FILE) { sat.addTo(m); return; }
+  const street = L.tileLayer(IS_HOSTED ? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png' : '/tiles/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' }).addTo(m);
+  let fails = 0;
+  street.on('tileerror', () => { if (++fails === 4) { m.removeLayer(street); sat.addTo(m); } });
+  L.control.layers({ '일반지도': street, '위성지도': sat }, null, { position: 'topright', collapsed: false }).addTo(m);
+}
+
+// ───────── 상태 ─────────
+const st = {
+  ri: '전체', unit: 'month', from: null, to: null,
+  t10type: 'trade', t10sort: 'cnt',
+  selKey: null, selListing: null, zoomSel: false,
+  months: {},      // ym → {trade:[], rent:[]}
+  reb: {},
+};
+
+// ───────── 유틸 ─────────
+const pad = n => String(n).padStart(2, '0');
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const addMonths = (d, n) => { const x = new Date(d); x.setMonth(x.getMonth() + n); return x; };
+function won(man) { // 만원 → "3억 1,500"
+  if (man == null || isNaN(man)) return '-';
+  man = Math.round(man);
+  const e = Math.floor(man / 10000), r = man % 10000;
+  if (!e) return r.toLocaleString();
+  return r ? `${e}억 ${r.toLocaleString()}` : `${e}억`;
+}
+const avg = a => a.length ? a.reduce((s, x) => s + x, 0) / a.length : null;
+const median = a => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+const pct = (a, b) => (a == null || !b) ? null : (a / b - 1) * 100;
+function chg(v, digits = 1, suffix = '%') {
+  if (v == null || !isFinite(v)) return '<span class="s">비교 없음</span>';
+  const c = v > 0 ? 'up' : v < 0 ? 'down' : '';
+  return `<span class="${c}">${v > 0 ? '▲' : v < 0 ? '▼' : '-'} ${Math.abs(v).toFixed(digits)}${suffix}</span>`;
+}
+function km(a, b) {
+  const R = 6371, t = x => x * Math.PI / 180;
+  const dLat = t(b[0] - a[0]), dLng = t(b[1] - a[1]);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(t(a[0])) * Math.cos(t(b[0])) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+function distTxt(k) {
+  const road = k * 1.3; // 직선거리 → 도로거리 보정
+  if (k < 1.2) return `${Math.round(k * 1000)}m · 도보 ${Math.max(1, Math.round(road * 1000 / 67))}분`;
+  return `${k.toFixed(1)}km · 차량 ${Math.max(2, Math.round(road / 40 * 60 + 2))}분`;
+}
+const keyOf = r => `${r.ri}|${r.jibun}`;
+function aptMeta(key, raw) {
+  const m = D.apts[key];
+  if (m) return m;
+  const [ri] = key.split('|');
+  const c = D.riCenter[ri] || D.center;
+  return { name: raw || key, short: raw || key, lat: c[0], lng: c[1], approx: true };
+}
+function monthsBetween(from, to) {
+  const out = [];
+  let d = new Date(from.getFullYear(), from.getMonth(), 1);
+  while (d <= to) { out.push(`${d.getFullYear()}${pad(d.getMonth() + 1)}`); d = addMonths(d, 1); }
+  return out;
+}
+function bucketOf(dstr) {
+  if (st.unit === 'month') return dstr.slice(0, 7);
+  const d = new Date(dstr + 'T00:00:00');
+  const mon = addDays(d, -((d.getDay() + 6) % 7));
+  return ymd(mon);
+}
+function bucketLabel(b) {
+  if (st.unit === 'month') return `${b.slice(2, 4)}.${b.slice(5, 7)}`;
+  return `${+b.slice(5, 7)}/${+b.slice(8, 10)}주`;
+}
+function bucketList(from, to) {
+  const out = [];
+  if (st.unit === 'month') { for (const m of monthsBetween(from, to)) out.push(`${m.slice(0, 4)}-${m.slice(4)}`); }
+  else { let d = new Date(bucketOf(ymd(from)) + 'T00:00:00'); while (d <= to) { out.push(ymd(d)); d = addDays(d, 7); } }
+  return out;
+}
+
+// ───────── 데이터 로딩 ─────────
+async function loadMonths(list) {
+  const need = list.filter(m => !st.months[m]);
+  if (!need.length) return;
+  $('#loading').classList.add('on');
+  try {
+    for (let i = 0; i < need.length; i += 12) {
+      const chunk = need.slice(i, i + 12);
+      $('#loadingMsg').textContent = `실거래 데이터를 불러오는 중… (${Math.min(i + 12, need.length)}/${need.length}개월)`;
+      let t, r;
+      try {
+        if (STATIC) throw new Error('static');
+        [t, r] = await Promise.all(['trade', 'rent'].map(type =>
+          fetch(`/api/rtms?type=${type}&months=${chunk.join(',')}`).then(x => { if (!x.ok) throw new Error(x.status); return x.json(); })));
+      } catch {
+        // 서버가 없으면 마지막으로 저장된 snapshot.js 사용
+        const snap = window.SNAPSHOT?.months || {};
+        t = {}; r = {};
+        for (const m of chunk) { t[m] = snap[m]?.trade || []; r[m] = snap[m]?.rent || []; }
+        showOffline();
+      }
+      for (const m of chunk) st.months[m] = { trade: Array.isArray(t[m]) ? t[m] : [], rent: Array.isArray(r[m]) ? r[m] : [] };
+    }
+  } finally { $('#loading').classList.remove('on'); }
+}
+async function loadReb() {
+  const snapReb = (id, cyc, cls) => window.SNAPSHOT?.reb?.[`${id}_${cyc}_${cls}`] || [];
+  const q = (id, cyc, cls) => STATIC ? Promise.resolve(snapReb(id, cyc, cls))
+    : fetch(`/api/reb?id=${id}&cyc=${cyc}&cls=${cls}`).then(r => { if (!r.ok) throw 0; return r.json(); }).catch(() => (showOffline(), snapReb(id, cyc, cls)));
+  const [idxT, idxJ, idxN, unsold, asanVol, demand] = await Promise.all([
+    q('T244183132827305', 'WK', '50200'),   // 주간 매매가격지수 아산
+    q('T247713133046872', 'WK', '50200'),   // 주간 전세가격지수 아산
+    q('T244183132827305', 'WK', '50001'),   // 주간 매매가격지수 전국
+    q('T237973129847263', 'MM', '50138'),   // 미분양 아산
+    q('A_2024_00549', 'MM', '510157'),      // 아파트 거래현황 아산
+    q('T248163133074619', 'WK', '50036'),   // 매매수급동향 충남
+  ]);
+  st.reb = { idxT, idxJ, idxN, unsold, asanVol: (asanVol || []).filter(r => r.itm === '동(호)수'), demand };
+}
+function showOffline() {
+  const el = $('#offlineNote'); if (el.style.display === 'block') return;
+  const b = window.SNAPSHOT?.built;
+  el.style.display = 'block';
+  if (IS_HOSTED) { el.innerHTML = `자료 기준 <b>${b ? new Date(b).toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' }) : '-'}</b> · 국토교통부 실거래가·한국부동산원 통계를 매일 자동으로 갱신합니다. 매물 상담 <b><a href="tel:0415457771" style="color:inherit">041-545-7771</a></b>`; return; }
+  el.innerHTML = b ? `저장된 자료로 표시 중입니다 (저장 시각 ${new Date(b).toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })}). 최신 실거래와 일반지도를 보려면 폴더의 <b>start.bat</b>을 실행하세요. (지금은 위성지도로 표시)`
+    : '데이터 서버가 실행되지 않았습니다. 폴더의 <b>start.bat</b>을 더블클릭해서 열어 주세요 (http://localhost:8787).';
+}
+function allRows(type, from, to) {
+  const f = ymd(from), t = ymd(to);
+  const out = [];
+  for (const m of monthsBetween(from, to)) {
+    const src = st.months[m]; if (!src) continue;
+    for (const r of src[type === 'trade' ? 'trade' : 'rent']) if (r.d >= f && r.d <= t) out.push(r);
+  }
+  return out;
+}
+function periodData(from, to, riFilter = st.ri) {
+  const okRi = r => riFilter === '전체' || r.ri === riFilter;
+  const trade = allRows('trade', from, to).filter(r => !r.cancel && okRi(r));
+  const rent = allRows('rent', from, to).filter(okRi);
+  return { trade, jeonse: rent.filter(r => !r.mon), wolse: rent.filter(r => r.mon > 0) };
+}
+function prevRange() {
+  const len = Math.round((st.to - st.from) / 864e5) + 1;
+  return [addDays(st.from, -len), addDays(st.from, -1)];
+}
+
+// ───────── 렌더: 필터 ─────────
+function renderRiChips() {
+  const hist = periodData(addMonths(new Date(), -36), new Date(), '전체');
+  const cnt = {};
+  const apts = {};
+  for (const r of [...hist.trade, ...hist.jeonse, ...hist.wolse]) { apts[r.ri] = apts[r.ri] || new Set(); apts[r.ri].add(keyOf(r)); }
+  for (const k in apts) cnt[k] = apts[k].size;
+  const ris = ['전체', ...Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])];
+  const total = Object.values(cnt).reduce((s, x) => s + x, 0);
+  $('#riChips').innerHTML = '<label>지역(리)</label>' + ris.map(r =>
+    `<button class="chip ${r === st.ri ? 'on' : ''}" data-ri="${r}">${r}<span class="cnt">${r === '전체' ? total : cnt[r]}단지</span></button>`).join('');
+}
+
+// ───────── 렌더: KPI ─────────
+function renderKpis() {
+  const cur = periodData(st.from, st.to), [pf, pt] = prevRange(), prev = periodData(pf, pt);
+  const ppp = a => avg(a.map(r => r.amt / (r.ar / PY)));
+  const jpp = a => avg(a.map(r => r.dep / (r.ar / PY)));
+  const tP = ppp(cur.trade), tPp = ppp(prev.trade), jP = jpp(cur.jeonse);
+  const ratio = tP && jP ? jP / tP * 100 : null;
+  const idx = st.reb.idxT || [], last = idx[idx.length - 1], prevW = idx[idx.length - 2];
+  const yearAgo = idx[idx.length - 53];
+  const uns = st.reb.unsold || [], u1 = uns[uns.length - 1], u0 = uns[uns.length - 2];
+  const dem = (st.reb.demand || []).slice(-1)[0];
+  const scope = st.ri === '전체' ? '둔포면' : st.ri;
+  const tile = (color, k, v, unit, s) => `<div class="kpi"><div class="k">${color ? `<i style="background:${color}"></i>` : ''}${k}</div><div class="v">${v}<small>${unit}</small></div><div class="s">${s}</div></div>`;
+  $('#kpis').innerHTML = [
+    tile('var(--s-trade)', `${scope} 매매 거래량`, cur.trade.length.toLocaleString(), '건', `직전 동기간 ${chg(pct(cur.trade.length, prev.trade.length))}`),
+    tile('var(--s-trade)', '매매 평균 평당가', tP ? Math.round(tP).toLocaleString() : '-', '만원', `직전 동기간 ${chg(pct(tP, tPp))}`),
+    tile('var(--s-jeonse)', '전세 평균 · 전세가율', jP ? Math.round(jP).toLocaleString() : '-', '만원/평', `전세가율 <b>${ratio ? ratio.toFixed(1) + '%' : '-'}</b> · ${cur.jeonse.length}건`),
+    tile('var(--s-wolse)', '월세 평균', cur.wolse.length ? Math.round(avg(cur.wolse.map(r => r.mon))) : '-', '만원', `보증금 평균 ${won(avg(cur.wolse.map(r => r.dep)))} · ${cur.wolse.length}건`),
+    tile('', '아산 매매가격지수(주간)', last ? last.v.toFixed(2) : '-', '', last ? `${last.desc} · 전주 ${chg(pct(last.v, prevW?.v), 2)} · 1년 ${chg(pct(last.v, yearAgo?.v), 2)}` : '부동산원 연결 안 됨'),
+    tile('', '아산 미분양', u1 ? u1.v.toLocaleString() : '-', '호', u1 ? `${u1.desc} · 전월 ${chg(u0 ? u1.v - u0.v : null, 0, '호')}${dem ? ` · 충남 매매수급 ${dem.v.toFixed(1)}` : ''}` : ''),
+  ].join('');
+}
+
+// ───────── 렌더: 단지 통계 ─────────
+function aptStats(data) {
+  const m = {};
+  const get = r => { const k = keyOf(r); return m[k] = m[k] || { key: k, raw: r.apt, ri: r.ri, by: r.by, trade: [], jeonse: [], wolse: [] }; };
+  for (const r of data.trade) get(r).trade.push(r);
+  for (const r of data.jeonse) get(r).jeonse.push(r);
+  for (const r of data.wolse) get(r).wolse.push(r);
+  for (const s of Object.values(m)) {
+    for (const t of ['trade', 'jeonse', 'wolse']) s[t].sort((a, b) => b.d.localeCompare(a.d));
+    s.meta = aptMeta(s.key, s.raw);
+  }
+  return Object.values(m);
+}
+function lastTxt(arr, type) {
+  const r = arr[0]; if (!r) return '-';
+  if (type === 'trade') return `${won(r.amt)}`;
+  if (type === 'jeonse') return `${won(r.dep)}`;
+  return `${won(r.dep)}/${r.mon}`;
+}
+function renderAptTable() {
+  const stats = aptStats(periodData(st.from, st.to)).sort((a, b) => (b.trade.length + b.jeonse.length + b.wolse.length) - (a.trade.length + a.jeonse.length + a.wolse.length));
+  $('#aptListTitle').innerHTML = `${st.ri === '전체' ? '둔포면 전체' : '둔포면 ' + st.ri} 아파트 리스트 <span class="badge">${stats.length}개 단지 · ${ymd(st.from)} ~ ${ymd(st.to)}</span>`;
+  if (!stats.length) { $('#aptTable').innerHTML = '<tbody><tr><td class="empty">선택 기간에 거래된 아파트가 없습니다. 기간을 늘려보세요.</td></tr></tbody>'; return; }
+  $('#aptTable').innerHTML = `<thead><tr><th>단지명</th><th>리</th><th class="num">준공</th>
+    <th class="num">매매</th><th class="num">최근 매매가</th><th class="num">매매 평당가</th>
+    <th class="num">전세</th><th class="num">최근 전세</th><th class="num">월세</th><th class="num">최근 월세</th></tr></thead><tbody>` +
+    stats.map(s => {
+      const t = s.trade[0], j = s.jeonse[0], w = s.wolse[0];
+      return `<tr data-key="${s.key}" class="${s.key === st.selKey ? 'sel' : ''}"><td><b>${s.meta.name}</b></td><td>${s.ri}</td><td class="num">${s.by || '-'}</td>
+      <td class="num">${s.trade.length}</td><td class="num">${t ? `<b>${won(t.amt)}</b> <small style="color:var(--muted)">${t.ar.toFixed(0)}㎡ ${t.d.slice(2)}</small>` : '-'}</td>
+      <td class="num">${s.trade.length ? Math.round(avg(s.trade.map(r => r.amt / (r.ar / PY)))).toLocaleString() : '-'}</td>
+      <td class="num">${s.jeonse.length}</td><td class="num">${j ? won(j.dep) : '-'}</td>
+      <td class="num">${s.wolse.length}</td><td class="num">${w ? `${won(w.dep)}/${w.mon}` : '-'}</td></tr>`;
+    }).join('') + '</tbody>';
+}
+
+// ───────── 렌더: TOP10 + 지도 ─────────
+let map, mapLayer, mapMarkers = {};
+function initMap() {
+  map = L.map('map', { scrollWheelZoom: false }).setView(D.center, 14);
+  addBaseLayers(map);
+  mapLayer = L.layerGroup().addTo(map);
+}
+const T_LABEL = { trade: '매매', jeonse: '전세', wolse: '월세' };
+function top10() {
+  const stats = aptStats(periodData(st.from, st.to, '전체')).filter(s => s[st.t10type].length);
+  const t = st.t10type;
+  const val = s => t === 'trade' ? avg(s.trade.map(r => r.amt)) : t === 'jeonse' ? avg(s.jeonse.map(r => r.dep)) : avg(s.wolse.map(r => r.mon));
+  stats.forEach(s => s.val = val(s));
+  stats.sort((a, b) => st.t10sort === 'cnt' ? (b[t].length - a[t].length || b.val - a.val) : b.val - a.val);
+  return stats.slice(0, 10);
+}
+function popupHtml(s, hist) {
+  const h = hist || s;
+  const row = (lab, color, arr, type) => {
+    const r = arr[0];
+    return `<div class="row"><span><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${color};margin-right:4px"></i>${lab}</span><b>${r ? (type === 'trade' ? won(r.amt) : type === 'jeonse' ? won(r.dep) : won(r.dep) + '/' + r.mon) : '-'}</b></div>
+      ${r ? `<div style="font-size:11px;color:#8a93a3;text-align:right">${r.d} · ${r.ar.toFixed(1)}㎡ · ${r.fl || '-'}층</div>` : ''}`;
+  };
+  return `<div class="pop"><h4>${s.meta.name}</h4>
+    ${row('최근 매매', css('--s-trade'), h.trade, 'trade')}
+    ${row('최근 전세', css('--s-jeonse'), h.jeonse, 'jeonse')}
+    ${row('최근 월세', css('--s-wolse'), h.wolse, 'wolse')}
+    <div style="margin-top:6px;font-size:11px;color:#8a93a3">${s.ri} · ${s.by || ''}년 준공${s.meta.approx ? ' · 위치 근사' : ''}</div></div>`;
+}
+let histStats = {};
+function renderTop10() {
+  const list = top10(), t = st.t10type;
+  $('#top10Badge').textContent = `${T_LABEL[t]} · ${st.t10sort === 'cnt' ? '거래량순' : '평균가격순'} · ${ymd(st.from)} ~ ${ymd(st.to)}`;
+  const unit = t === 'wolse' ? '평균 월세' : t === 'jeonse' ? '평균 보증금' : '평균 매매가';
+  $('#rankList').innerHTML = list.length ? list.map((s, i) => `<li data-key="${s.key}" class="${s.key === st.selKey ? 'sel' : ''}">
+      <span class="no">${i + 1}</span>
+      <div style="min-width:0"><div class="nm">${s.meta.name}</div><div class="sb">${s.ri} · ${s.by || '-'}년 · ${T_LABEL[t]} ${s[t].length}건 · 최근 ${lastTxt(s[t], t)}</div></div>
+      <div class="pr">${t === 'wolse' ? Math.round(s.val) + '<small>만원/월</small>' : won(s.val)}<small>${unit}</small></div></li>`).join('')
+    : '<li class="empty">선택 기간에 거래가 없습니다.</li>';
+  mapLayer.clearLayers(); mapMarkers = {};
+  const pts = [];
+  list.forEach((s, i) => {
+    const ll = [s.meta.lat, s.meta.lng]; pts.push(ll);
+    const icon = L.divIcon({ className: '', html: `<div class="mk ${s.key === st.selKey ? 'sel' : ''}">${i + 1}</div>`, iconSize: [28, 28], iconAnchor: [14, 14] });
+    const mk = L.marker(ll, { icon, zIndexOffset: s.key === st.selKey ? 1000 : 0 }).addTo(mapLayer)
+      .bindPopup(popupHtml(s, histStats[s.key]))
+      .bindTooltip(`<span class="mk-label">${s.meta.short} · ${lastTxt(s[t], t)}</span>`, { permanent: s.key === st.selKey, direction: 'right', offset: [14, 0], className: 'leaflet-tooltip-clean', opacity: 1 });
+    mk.on('click', () => selectApt(s.key, { scroll: false }));
+    mapMarkers[s.key] = mk;
+  });
+  if (st.selKey && !mapMarkers[st.selKey]) {
+    const h = histStats[st.selKey];
+    if (h) {
+      const mk = L.marker([h.meta.lat, h.meta.lng], { icon: L.divIcon({ className: '', html: '<div class="mk sel">★</div>', iconSize: [28, 28], iconAnchor: [14, 14] }) }).addTo(mapLayer).bindPopup(popupHtml(h));
+      mapMarkers[st.selKey] = mk; pts.push([h.meta.lat, h.meta.lng]);
+    }
+  }
+  if (st.zoomSel && st.selKey && mapMarkers[st.selKey]) {
+    const ll = mapMarkers[st.selKey].getLatLng();
+    map.setView(ll, 16); mapMarkers[st.selKey].openPopup();
+  } else if (pts.length) map.fitBounds(pts, { padding: [50, 50], maxZoom: 15 });
+}
+
+// ───────── 입지분석 ─────────
+let locMap, locLayer;
+function initLocMap() {
+  locMap = L.map('locMap', { scrollWheelZoom: false }).setView(D.center, 14);
+  addBaseLayers(locMap);
+  locLayer = L.layerGroup().addTo(locMap);
+}
+const POI_STYLE = { 초: ['#2a78d6', '초'], 중: ['#6250d6', '중'], 고: ['#e34948', '고'], 마트: ['#eb6834', '마'], 카페: ['#8a5a3c', '☕'], 관공서: ['#0c8a7d', '公'], 의료: ['#d55181', '+'], 금융: ['#eda100', '₩'], 백화점: ['#eb6834', '百'], job: ['#52514e', '🏭'] };
+function poiIcon(k) { const [c, t] = POI_STYLE[k] || ['#555', '•']; return L.divIcon({ className: '', html: `<div class="poi" style="background:${c}">${t}</div>`, iconSize: [22, 22], iconAnchor: [11, 11] }); }
+
+function renderDetail() {
+  const key = st.selKey;
+  if (!key) return;
+  const h = histStats[key];
+  const meta = h ? h.meta : aptMeta(key);
+  const here = [meta.lat, meta.lng];
+  const withD = arr => arr.map(p => ({ ...p, km: km(here, [p.lat, p.lng]) })).sort((a, b) => a.km - b.km);
+
+  $('#dtRi').textContent = `충남 아산시 둔포면 ${key.split('|')[0]} ${key.split('|')[1]}`;
+  $('#dtName').textContent = meta.name;
+  $('#dtMeta').textContent = h ? `${h.by || '-'}년 준공 · 최근 3년 매매 ${h.trade.length}건 · 전세 ${h.jeonse.length}건 · 월세 ${h.wolse.length}건` : '최근 3년 실거래 없음';
+  const pill = (lab, color, r, txt) => `<div class="pill"><div class="t"><i style="background:${color}"></i>최근 ${lab} 실거래</div><div class="p">${r ? txt : '-'}</div><div class="d">${r ? `${r.d} · 전용 ${r.ar.toFixed(1)}㎡ · ${r.fl || '-'}층` : '최근 3년 거래 없음'}</div></div>`;
+  $('#dtPills').innerHTML = h ? [
+    pill('매매', 'var(--s-trade)', h.trade[0], h.trade[0] && won(h.trade[0].amt)),
+    pill('전세', 'var(--s-jeonse)', h.jeonse[0], h.jeonse[0] && won(h.jeonse[0].dep)),
+    pill('월세', 'var(--s-wolse)', h.wolse[0], h.wolse[0] && `${won(h.wolse[0].dep)} / ${h.wolse[0].mon}`),
+  ].join('') : '';
+
+  const lst = st.selListing;
+  const bn = $('#listingBanner');
+  if (lst && lst.key === key) {
+    bn.style.display = 'block';
+    bn.innerHTML = `<b>추천매물</b> · ${lst.type} <b style="font-size:16px">${lst.price}</b> · 전용 ${lst.area}㎡ · ${lst.floor || ''} — ${lst.desc || ''} <span style="float:right">문의 <b>041-545-7771</b></span>`;
+  } else bn.style.display = 'none';
+
+  const rails = withD(D.poi.rail), schools = withD(D.poi.school), shops = withD(D.poi.shop), jobs = withD(D.poi.job);
+  const nearest = lv => schools.find(s => s.lv === lv);
+  const e = nearest('초'), m = nearest('중'), hi = nearest('고');
+  const ktx = rails.find(r => /KTX|SRT/.test(r.tag)), sub = rails.find(r => /1호선/.test(r.tag));
+  const mart = shops.find(s => s.cat === '마트');
+  $('#dtSummary').innerHTML = `<b>입지 한 줄 요약</b> · ${e.name} ${distTxt(e.km).split(' · ')[0]}, ${m.name} ${distTxt(m.km).split(' · ')[0]} · ${mart.name} ${distTxt(mart.km).split(' · ')[0]} ·
+    전철 ${sub.name}(1호선) ${sub.km.toFixed(1)}km · 고속철 ${ktx.name} ${ktx.km.toFixed(1)}km · ${jobs[0].name} ${jobs[0].km.toFixed(1)}km`;
+
+  const li = (n, r, s = '') => `<li><span class="n">${n}${s ? `<small>${s}</small>` : ''}</span><span class="r">${r}</span></li>`;
+  const byCat = c => shops.filter(s => s.cat === c);
+  $('#locGrid').innerHTML = `
+    <div class="loc"><h3><span class="ic" style="background:#2a78d6">🚆</span>교통</h3>
+      <div class="sub">KTX · SRT</div><ul>${rails.filter(r => /KTX|SRT/.test(r.tag)).map(r => li(`${r.name} <span class="tag">${r.tag}</span>`, distTxt(r.km), r.note)).join('')}</ul>
+      <div class="sub">지하철 (수도권전철 1호선)</div><ul>${rails.filter(r => r.tag === '1호선').slice(0, 3).map(r => li(r.name, distTxt(r.km), r.note)).join('')}</ul>
+      <div class="sub">버스</div><ul>${D.poi.bus.map(b => li(b.name, '', b.note)).join('')}</ul>
+      <div class="sub">도로</div><ul>${D.poi.road.map(b => li(b.name, '', b.note)).join('')}</ul>
+    </div>
+    <div class="loc"><h3><span class="ic" style="background:#6250d6">🎓</span>학군</h3>
+      ${['초', '중', '고'].map(lv => `<div class="sub">${lv === '초' ? '초등학교' : lv === '중' ? '중학교' : '고등학교'}</div><ul>${schools.filter(s => s.lv === lv).map(s => li(s.name + (s.note ? ` <span class="tag">${s.note}</span>` : ''), distTxt(s.km))).join('')}</ul>`).join('')}
+    </div>
+    <div class="loc"><h3><span class="ic" style="background:#eb6834">🛒</span>상권 · 생활</h3>
+      <div class="sub">마트 · 백화점</div><ul>${[...byCat('마트').slice(0, 3), ...byCat('백화점')].map(s => li(s.name, distTxt(s.km))).join('')}</ul>
+      <div class="sub">카페</div><ul>${byCat('카페').slice(0, 3).map(s => li(s.name, distTxt(s.km))).join('')}</ul>
+      <div class="sub">관공서 · 금융 · 의료</div><ul>${[...byCat('관공서'), ...byCat('금융').slice(0, 1), ...byCat('의료')].map(s => li(s.name, distTxt(s.km))).join('')}</ul>
+      <div class="sub">주요 직장</div><ul>${jobs.map(s => li(s.name, distTxt(s.km))).join('')}</ul>
+    </div>
+    <div class="loc dev"><h3><span class="ic" style="background:#0c8a7d">🏗</span>주변 개발계획</h3>
+      <ul>${D.dev.map(d => `<li><b>${d.title}</b><span class="when">${d.when}</span><p>${d.desc}</p></li>`).join('')}</ul>
+    </div>`;
+
+  // 입지 지도
+  locLayer.clearLayers();
+  L.marker(here, { icon: L.divIcon({ className: '', html: '<div class="mk sel">★</div>', iconSize: [28, 28], iconAnchor: [14, 14] }), zIndexOffset: 1000 })
+    .addTo(locLayer).bindTooltip(`<span class="mk-label">${meta.name}</span>`, { permanent: true, direction: 'top', offset: [0, -14], className: 'leaflet-tooltip-clean', opacity: 1 });
+  const near = [];
+  schools.forEach(s => { L.marker([s.lat, s.lng], { icon: poiIcon(s.lv) }).addTo(locLayer).bindTooltip(`${s.name} · ${distTxt(s.km)}`); if (s.km < 3) near.push([s.lat, s.lng]); });
+  shops.forEach(s => { L.marker([s.lat, s.lng], { icon: poiIcon(s.cat) }).addTo(locLayer).bindTooltip(`${s.name} · ${distTxt(s.km)}`); if (s.km < 3) near.push([s.lat, s.lng]); });
+  jobs.forEach(s => L.marker([s.lat, s.lng], { icon: poiIcon('job') }).addTo(locLayer).bindTooltip(`${s.name} · ${distTxt(s.km)}`));
+  L.circle(here, { radius: 1000, color: css('--brand-2'), weight: 1, fillOpacity: .05, dashArray: '4 4' }).addTo(locLayer);
+  setTimeout(() => { locMap.invalidateSize(); locMap.fitBounds([here, ...near], { padding: [30, 30], maxZoom: 16 }); }, 50);
+
+  // 실거래 내역 + 추이
+  const deals = h ? [
+    ...h.trade.map(r => ({ ...r, t: '매매', p: won(r.amt) })),
+    ...h.jeonse.map(r => ({ ...r, t: '전세', p: won(r.dep) })),
+    ...h.wolse.map(r => ({ ...r, t: '월세', p: `${won(r.dep)} / ${r.mon}` })),
+  ].sort((a, b) => b.d.localeCompare(a.d)).slice(0, 60) : [];
+  const tc = { 매매: 'var(--s-trade)', 전세: 'var(--s-jeonse)', 월세: 'var(--s-wolse)' };
+  $('#dtDeals').innerHTML = deals.length ? `<thead><tr><th>계약일</th><th>구분</th><th class="num">전용㎡</th><th class="num">평형(공급추정)</th><th class="num">층</th><th class="num">가격(만원)</th><th>비고</th></tr></thead><tbody>` +
+    deals.map(r => `<tr><td>${r.d}</td><td><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${tc[r.t]};margin-right:5px"></i>${r.t}</td><td class="num">${r.ar.toFixed(2)}</td><td class="num">${Math.round(r.ar / PY * 1.3)}평</td><td class="num">${r.fl || '-'}</td><td class="num"><b>${r.p}</b></td><td>${r.ctype || r.gbn || ''}</td></tr>`).join('') + '</tbody>'
+    : '<tbody><tr><td class="empty">최근 3년 실거래 내역이 없습니다.</td></tr></tbody>';
+  drawAptHist(h);
+}
+
+// ───────── 차트 ─────────
+const charts = {};
+function baseOpts(extra = {}) {
+  const grid = css('--line'), tick = css('--muted');
+  return {
+    responsive: true, maintainAspectRatio: false, animation: { duration: 250 },
+    interaction: { mode: 'index', intersect: false },
+    plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(14,23,38,.92)', padding: 10, titleFont: { weight: '700' }, bodyFont: { size: 12 } } },
+    scales: {
+      x: { grid: { display: false }, ticks: { color: tick, maxRotation: 0, autoSkip: true, autoSkipPadding: 12, font: { size: 11 } }, border: { color: grid } },
+      y: { grid: { color: grid }, border: { display: false }, ticks: { color: tick, font: { size: 11 } } },
+    }, ...extra,
+  };
+}
+function mk(id, cfg) { charts[id]?.destroy(); charts[id] = new Chart(document.getElementById(id), cfg); }
+function drawTrend() {
+  const buckets = bucketList(st.from, st.to);
+  const data = periodData(st.from, st.to);
+  const cnt = (arr) => { const m = Object.fromEntries(buckets.map(b => [b, 0])); for (const r of arr) { const b = bucketOf(r.d); if (b in m) m[b]++; } return buckets.map(b => m[b]); };
+  const ppp = (arr, f) => { const m = {}; for (const r of arr) (m[bucketOf(r.d)] = m[bucketOf(r.d)] || []).push(f(r) / (r.ar / PY)); return buckets.map(b => m[b] ? Math.round(avg(m[b])) : null); };
+  const labels = buckets.map(bucketLabel);
+  $('#volBadge').textContent = st.unit === 'month' ? '월간' : '주간';
+  const bar = (label, data, c) => ({ label, data, backgroundColor: c, borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: 'bottom', borderColor: css('--surface'), borderWidth: { left: 1, right: 1 }, maxBarThickness: 18 });
+  mk('cVol', { type: 'bar', data: { labels, datasets: [bar('매매', cnt(data.trade), css('--s-trade')), bar('전세', cnt(data.jeonse), css('--s-jeonse')), bar('월세', cnt(data.wolse), css('--s-wolse'))] },
+    options: baseOpts({ plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${c.dataset.label} ${c.raw}건` } } } }) });
+  const line = (label, data, c) => ({ label, data, borderColor: c, backgroundColor: c, borderWidth: 2, pointRadius: data.filter(v => v != null).length < 20 ? 3 : 0, pointHoverRadius: 5, spanGaps: true, tension: .25 });
+  mk('cPpp', { type: 'line', data: { labels, datasets: [line('매매', ppp(data.trade, r => r.amt), css('--s-trade')), line('전세', ppp(data.jeonse, r => r.dep), css('--s-jeonse'))] },
+    options: baseOpts({ plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${c.dataset.label} ${c.raw?.toLocaleString() ?? '-'}만원/평` } } } }) });
+}
+function drawReb() {
+  const r = st.reb;
+  const minFrom = addMonths(st.to, -12) < st.from ? addMonths(st.to, -12) : st.from;
+  const f = ymd(minFrom), t = ymd(st.to);
+  const inRange = a => (a || []).filter(x => x.desc >= f && x.desc <= t);
+  let T = inRange(r.idxT), J = inRange(r.idxJ), N = inRange(r.idxN);
+  if (st.unit === 'month') { // 월말 주차만 남김
+    const lastOfMonth = a => Object.values(a.reduce((m, x) => (m[x.desc.slice(0, 7)] = x, m), {}));
+    T = lastOfMonth(T); J = lastOfMonth(J); N = lastOfMonth(N);
+  }
+  const mapBy = a => Object.fromEntries(a.map(x => [x.desc, x.v]));
+  const jm = mapBy(J), nm = mapBy(N);
+  const line = (label, data, c, dash) => ({ label, data, borderColor: c, backgroundColor: c, borderWidth: 2, pointRadius: 0, pointHoverRadius: 5, borderDash: dash || [], tension: .2, spanGaps: true });
+  mk('cIdx', { type: 'line', data: { labels: T.map(x => st.unit === 'month' ? x.desc.slice(2, 7).replace('-', '.') : x.desc.slice(5).replace('-', '/')),
+    datasets: [line('아산 매매', T.map(x => x.v), css('--s-trade')), line('아산 전세', T.map(x => jm[x.desc] ?? null), css('--s-jeonse')), line('전국 매매', T.map(x => nm[x.desc] ?? null), '#8a93a3', [4, 3])] },
+    options: baseOpts({ plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${c.dataset.label} ${c.raw?.toFixed(2)}` } } } }) });
+  const bars = (id, a, color, unit) => {
+    const d = (a || []).slice(-24);
+    mk(id, { type: 'bar', data: { labels: d.map(x => `${x.t.slice(2, 4)}.${x.t.slice(4)}`), datasets: [{ data: d.map(x => x.v), backgroundColor: color, borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: 'bottom', maxBarThickness: 16 }] },
+      options: baseOpts({ plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${c.raw.toLocaleString()}${unit}` } } } }) });
+  };
+  bars('cUnsold', r.unsold, css('--brand'), '호');
+  bars('cAsanVol', r.asanVol, css('--s-trade'), '호');
+}
+function drawAptHist(h) {
+  const pts = (arr, f) => arr.map(r => ({ x: new Date(r.d).getTime(), y: f(r), r }));
+  const ds = (label, data, c) => ({ label, data, backgroundColor: c, borderColor: css('--surface'), borderWidth: 1.5, pointRadius: 5, pointHoverRadius: 7 });
+  mk('cAptHist', { type: 'scatter', data: { datasets: h ? [ds('매매', pts(h.trade, r => r.amt), css('--s-trade')), ds('전세', pts(h.jeonse, r => r.dep), css('--s-jeonse'))] : [] },
+    options: baseOpts({
+      interaction: { mode: 'nearest', intersect: true },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { title: () => '', label: c => ` ${c.dataset.label} ${won(c.raw.y)} · ${c.raw.r.ar.toFixed(1)}㎡ · ${c.raw.r.fl || '-'}층 · ${c.raw.r.d}` } } },
+      scales: {
+        x: { type: 'linear', grid: { display: false }, ticks: { color: css('--muted'), callback: v => { const d = new Date(v); return `${String(d.getFullYear()).slice(2)}.${pad(d.getMonth() + 1)}`; }, maxTicksLimit: 8, font: { size: 11 } } },
+        y: { grid: { color: css('--line') }, border: { display: false }, ticks: { color: css('--muted'), callback: v => won(v), font: { size: 11 } } },
+      },
+    }) });
+}
+
+// ───────── 추천매물 ─────────
+const LS = 'dunpo_listings_v1';
+// 공개 사이트에서는 data.js 의 매물만 보여주고 추가/삭제는 숨김 (방문자 브라우저에만 저장되므로)
+function getListings() { if (IS_HOSTED) return D.listings.slice(); try { const s = localStorage.getItem(LS); if (s) return JSON.parse(s); } catch { } return D.listings.slice(); }
+function saveListings(a) { try { localStorage.setItem(LS, JSON.stringify(a)); } catch { } }
+function renderListings() {
+  const a = getListings();
+  const tc = { 매매: 'var(--s-trade)', 전세: 'var(--s-jeonse)', 월세: 'var(--s-wolse)' };
+  $('#listingGrid').innerHTML = a.map(l => {
+    const m = aptMeta(l.key, l.key);
+    const h = histStats[l.key];
+    const ref = h ? (l.type === '매매' ? h.trade[0] && `최근 실거래 ${won(h.trade[0].amt)}` : l.type === '전세' ? h.jeonse[0] && `최근 전세 ${won(h.jeonse[0].dep)}` : h.wolse[0] && `최근 월세 ${won(h.wolse[0].dep)}/${h.wolse[0].mon}`) : '';
+    return `<div class="listing" data-id="${l.id}">
+      ${IS_HOSTED ? '' : `<button class="del" data-del="${l.id}" title="삭제">×</button>`}
+      <div class="ph"><span class="ty" style="color:${tc[l.type]}">${l.type}</span><div class="nm">${m.name}</div></div>
+      <div class="bd"><div class="price">${l.price}<small> ${l.type === '월세' ? '보증금/월세(만원)' : ''}</small></div>
+        <div class="ds">${l.desc || ''}</div>
+        <div>${(l.tags || []).map(t => `<span class="tag">#${t}</span>`).join('')}</div></div>
+      <div class="ft"><span>전용 ${l.area}㎡ · ${l.floor || ''}</span><span>${ref || ''}</span></div></div>`;
+  }).join('') + (IS_HOSTED ? '' : `<div class="listing add" id="addListing"><div style="font-size:32px;line-height:1">＋</div><div>추천매물 추가</div>
+    <button class="btn ghost sm" id="resetListings" style="margin-top:8px">샘플로 초기화</button></div>`);
+  if (IS_HOSTED) $('#listingDesc').textContent = '카드를 클릭하면 교통·학군·상권·개발계획 입지분석이 펼쳐집니다. 매물 문의 041-545-7771';
+}
+
+// ───────── 선택 ─────────
+function selectApt(key, { scroll = true, listing = null } = {}) {
+  st.selKey = key; st.selListing = listing; st.zoomSel = true;
+  document.querySelectorAll('#aptTable tr, #rankList li').forEach(el => el.classList.toggle('sel', el.dataset.key === key));
+  renderTop10();
+  renderDetail();
+  if (scroll) document.getElementById(listing ? 'detailSec' : 'top10Sec').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ───────── 전체 갱신 ─────────
+async function refresh() {
+  const histFrom = addMonths(new Date(), -36);
+  const from = st.from < histFrom ? st.from : histFrom;
+  const [pf] = prevRange();
+  await loadMonths(monthsBetween(pf < from ? pf : from, new Date()));
+  const h = periodData(histFrom, new Date(), '전체');
+  histStats = Object.fromEntries(aptStats(h).map(s => [s.key, s]));
+  renderRiChips(); renderKpis(); renderAptTable(); renderTop10(); drawTrend(); drawReb(); renderListings();
+  if (!st.selKey) { const first = top10()[0]; if (first) st.selKey = first.key; renderTop10(); }
+  renderDetail();
+  $('#metaLine').textContent = `국토교통부 실거래가 · 한국부동산원 R-ONE · 조회 ${ymd(st.from)} ~ ${ymd(st.to)} (${st.unit === 'month' ? '월간' : '주간'})`;
+}
+function setPreset(p) {
+  const to = new Date();
+  const n = parseInt(p);
+  st.from = p.endsWith('w') ? addDays(to, -7 * n + 1) : addDays(addMonths(to, -n), 1);
+  st.to = to;
+  if (p.endsWith('w')) setUnit('week', false); else if (n >= 6) setUnit('month', false);
+  $('#dFrom').value = ymd(st.from); $('#dTo').value = ymd(st.to);
+  document.querySelectorAll('#presets .chip').forEach(c => c.classList.toggle('on', c.dataset.p === p));
+}
+function setUnit(u, doRefresh = true) {
+  st.unit = u;
+  document.querySelectorAll('#unitSeg button').forEach(b => b.classList.toggle('on', b.dataset.u === u));
+  if (doRefresh) { renderKpis(); drawTrend(); drawReb(); }
+}
+
+// ───────── 이벤트 ─────────
+document.addEventListener('click', e => {
+  const t = e.target;
+  const ri = t.closest('[data-ri]'); if (ri) { st.ri = ri.dataset.ri; renderRiChips(); renderKpis(); renderAptTable(); drawTrend(); return; }
+  const row = t.closest('#aptTable tr[data-key], #rankList li[data-key]'); if (row) { selectApt(row.dataset.key, { scroll: !!t.closest('#aptTable') }); return; }
+  const u = t.closest('#unitSeg button'); if (u) { setUnit(u.dataset.u); return; }
+  const p = t.closest('#presets .chip'); if (p) { setPreset(p.dataset.p); refresh(); return; }
+  const tab = t.closest('#typeTabs button'); if (tab) { st.t10type = tab.dataset.t; document.querySelectorAll('#typeTabs button').forEach(b => b.classList.toggle('on', b === tab)); renderTop10(); return; }
+  const so = t.closest('#sortSeg button'); if (so) { st.t10sort = so.dataset.s; document.querySelectorAll('#sortSeg button').forEach(b => b.classList.toggle('on', b === so)); renderTop10(); return; }
+  if (t.closest('#resetListings')) { e.stopPropagation(); try { localStorage.removeItem(LS); } catch { } renderListings(); return; }
+  const del = t.closest('[data-del]'); if (del) { if (confirm('이 매물을 삭제할까요?')) { saveListings(getListings().filter(l => l.id !== del.dataset.del)); renderListings(); } return; }
+  if (t.closest('#addListing')) { openDialog(); return; }
+  const card = t.closest('.listing[data-id]'); if (card) { const l = getListings().find(x => x.id === card.dataset.id); if (l) selectApt(l.key, { listing: l }); return; }
+});
+$('#btnApply').addEventListener('click', () => {
+  const f = new Date($('#dFrom').value + 'T00:00:00'), t = new Date($('#dTo').value + 'T00:00:00');
+  if (isNaN(f) || isNaN(t) || f > t) { alert('기간을 확인해 주세요.'); return; }
+  st.from = f; st.to = t;
+  document.querySelectorAll('#presets .chip').forEach(c => c.classList.remove('on'));
+  refresh();
+});
+function openDialog() {
+  const opts = Object.entries(histStats).sort((a, b) => a[1].meta.name.localeCompare(b[1].meta.name, 'ko'));
+  $('#fKey').innerHTML = opts.map(([k, s]) => `<option value="${k}">${s.meta.name} (${s.ri})</option>`).join('');
+  $('#dlgForm').reset();
+  $('#dlg').showModal();
+}
+$('#dlg').addEventListener('close', () => {
+  if ($('#dlg').returnValue !== 'ok') return;
+  const fd = new FormData($('#dlgForm'));
+  const l = Object.fromEntries(fd.entries());
+  l.id = 'u' + Date.now(); l.area = +l.area;
+  l.tags = (l.tags || '').split(',').map(s => s.trim()).filter(Boolean);
+  const a = getListings(); a.unshift(l); saveListings(a); renderListings();
+});
+
+// ───────── 시작 ─────────
+(async function init() {
+  // 파일로 열었는데 start.bat 서버가 켜져 있으면 서버 주소로 이동
+  if (IS_FILE) {
+    const up = await new Promise(ok => { const i = new Image(); i.onload = () => ok(true); i.onerror = () => ok(false); i.src = 'http://localhost:8787/logo.svg?t=' + Date.now(); setTimeout(() => ok(false), 1500); });
+    if (up) { location.replace('http://localhost:8787/'); return; }
+  }
+  initMap(); initLocMap();
+  setPreset('12m');
+  await Promise.all([loadReb(), refresh()]);
+  drawReb(); renderKpis();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+# API 키 (절대 커밋 금지)
+config.local.json
+.env
+
+# 로컬 캐시
+cache/
+tile-cache/
+
+# 로컬 도구 설정
+.claude/

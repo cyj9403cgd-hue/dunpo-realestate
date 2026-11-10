@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="내집멘토부동산 아산 둔포 전문">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f3b74"/>
+      <stop offset="1" stop-color="#0c8a7d"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#bg)"/>
+  <!-- 집 -->
+  <path d="M11 31 L32 13 L53 31" fill="none" stroke="#fff" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M17.5 28 V47 H46.5 V28" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- 아산 은행나무잎 -->
+  <path d="M32 43.5 C24.5 38.5 22.6 31 25.4 25.6 C28 27.6 30.4 27.8 32 26.6 C33.6 27.8 36 27.6 38.6 25.6 C41.4 31 39.5 38.5 32 43.5 Z" fill="#f5b82e"/>
+  <path d="M32 43 V47" stroke="#f5b82e" stroke-width="2.2" stroke-linecap="round"/>
+  <!-- 곡교천 물결 -->
+  <path d="M9 54.5 q5.75 -4 11.5 0 t11.5 0 t11.5 0 t11.5 0" fill="none" stroke="#7fe0d2" stroke-width="2.6" stroke-linecap="round"/>
+</svg>
